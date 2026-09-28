@@ -1,0 +1,13 @@
+{
+  "name": "lesson4-campus-systems",
+  "version": "1.0.0",
+  "private": true,
+  "description": "\u516d\u5e74\u7ea7\u7b2c4\u8bfe \u8f93\u5165\u8f93\u51fa\u4e0e\u8ba1\u7b97\u8bfe\u5802\u63a2\u7d22\u7ad9",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node server.cjs",
+    "test": "node --no-warnings --test tests/*.test.*"
+  }
+}
