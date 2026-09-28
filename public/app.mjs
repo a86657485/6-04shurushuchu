@@ -1,5 +1,6 @@
 import {CampusScene} from './scene.mjs?v=1';
 import {Microphone} from './microphone.mjs?v=1';
+import {readSharedLight} from './shared-light.mjs?v=3';
 import {ClassroomSync,api,download,escape,uniqueId} from './sync.mjs?v=1';
 import {activities,sceneObservations} from './activities.mjs?v=1';
 import {chooseHintTarget} from './hint-guide.mjs?v=1';
@@ -19,7 +20,7 @@ function refreshGuide(){
  document.querySelectorAll('.guided-next').forEach(el=>el.classList.remove('guided-next'));
  if(!guideActive)return;
  const d=draft(),reviewErrors=submittedOnce?R.assess(stage,{...d,submitted:true}).errors:[];
- const next=chooseHintTarget(stage,d,{signal,source,micListening,liveActive:!!live?.active,hasTextOutput:!!textOutput.trim(),observationPending,reviewErrors,passed:!$('next').hidden});
+ const next=chooseHintTarget(stage,d,{signal,source,micListening,liveActive:readSharedLight(live).fresh,hasTextOutput:!!textOutput.trim(),observationPending,reviewErrors,passed:!$('next').hidden});
  const el=next&&document.querySelector(next.selector);
  if(!el||el.disabled||el.closest('[hidden]')){$('hint-text').textContent=hintBaseText;return;}
  el.classList.add('guided-next');
@@ -49,10 +50,34 @@ function renderControls(){let html='';if(stage==='road')html='<button id="red">�
  if(stage==='text'){let composing=false;$('hanzi-input').oncompositionstart=()=>composing=true;$('hanzi-input').oncompositionend=e=>{composing=false;source='keyboard';textOutput=e.target.value;updateScene();refreshGuide();};$('hanzi-input').oninput=e=>{if(!composing){source='keyboard';textOutput=e.target.value;updateScene();refreshGuide();}};$('hanzi-input').onkeydown=e=>{if(e.key.length===1||e.key==='Backspace')textInput=(textInput+e.key).slice(-200);};$('capture-text').onclick=()=>{textOutput=$('hanzi-input').value;textInput=textInput||textOutput;addTrial();};$('simulate-text').onclick=()=>{textInput='xiaoyuan';textOutput='校园';$('hanzi-input').value=textOutput;source='simulation';updateScene();addTrial();};}
  if(stage==='door'){const move=x=>{door=R.stepDoor(door,x,Date.now());observationPending=true;$('person-x').value=x*100;updateScene();refreshGuide();};$('person-x').oninput=e=>move(Number(e.target.value)/100);$('far').onclick=()=>move(.1);$('near').onclick=()=>move(.85);}}
 const mic=new Microphone({onSample:s=>{soundLevel=s.level;},onStatus:s=>{micListening=s.state==='listening';const el=$('mic-message');if(el)el.textContent=s.message;if(['stopped','error'].includes(s.state))soundLevel=0;refreshGuide();}});
-function updateScene(){if(!scene)return;scene.setState({lamp:source==='teacher'?!!live?.lamp:sound.lamp,level:source==='teacher'?(live?.level||0):soundLevel,doorOpen:door.doorOpen,personX:door.personX,signal,moving:signal==='green'&&action==='check',text:textOutput});let message='';if(stage==='road')message='信号：'+(signal==='red'?'红灯':'绿灯')+' · 行人：'+(action==='stop'?'停下等待':'观察路况后通行');if(stage==='sound'){const t=source==='teacher'?live:sound;message=(source==='simulation'?'模拟声音':source==='microphone'?'本机实测':'教师实测观察')+' · '+(t?.lamp?'灯亮':'灯不亮');if(source==='teacher'&&(!live||Date.now()-new Date(live.at).getTime()>5000||!live.active))message='教师采声已停止或尚未连接，不能记录为现场结果';const meter=$('meter-fill');if(meter)meter.style.width=((source==='teacher'?live?.level||0:soundLevel)*100)+'%';}if(stage==='text')message='屏幕显示：'+(textOutput||'等待输入汉字');if(stage==='door')message='来访者：'+(door.personX>=.65?'在检测区':'在检测区外')+' · 门：'+(door.doorOpen?'打开':'关闭');$('live-status').textContent=message;}
+function updateScene(){
+ if(!scene)return;
+ const shared=readSharedLight(live);
+ scene.setState({
+  lamp:source==='teacher'?shared.lamp:sound.lamp,
+  level:source==='teacher'?shared.level:soundLevel,
+  doorOpen:door.doorOpen,personX:door.personX,signal,
+  moving:signal==='green'&&action==='check',text:textOutput
+ });
+ let message='';
+ if(stage==='road')message='信号：'+(signal==='red'?'红灯':'绿灯')+' · 行人：'+(action==='stop'?'停下等待':'观察路况后通行');
+ if(stage==='sound'){
+  message=(source==='simulation'?'模拟声音':source==='microphone'?'本机实测':'教师实测观察')+' · '+((source==='teacher'?shared.lamp:sound.lamp)?'灯亮':'灯不亮');
+  if(source==='teacher'){
+   if(!shared.fresh)message='教师采声已停止或尚未连接，不能记录为现场结果';
+   const status=$('mic-message');
+   if(status)status.textContent=shared.fresh?'教师现场实测已同步；只观察共享状态':'等待教师现场实验；只观察共享状态';
+  }
+  const meter=$('meter-fill');
+  if(meter)meter.style.width=((source==='teacher'?shared.level:soundLevel)*100)+'%';
+ }
+ if(stage==='text')message='屏幕显示：'+(textOutput||'等待输入汉字');
+ if(stage==='door')message='来访者：'+(door.personX>=.65?'在检测区':'在检测区外')+' · 门：'+(door.doorOpen?'打开':'关闭');
+ $('live-status').textContent=message;
+}
 setInterval(()=>{if(!scene||$('stage-page').hidden)return;const now=Date.now();if(stage==='sound'&&source!=='teacher')sound=R.stepSound(sound,soundLevel,now);if(stage==='door')door=R.stepDoor(door,door.personX,now);updateScene();},60);
-setInterval(async()=>{if(stage!=='sound'||source!=='teacher'||!scene)return;try{live=await api('/api/live');updateScene();}catch{live=null;updateScene();}},700);
-function addTrial(){const d=draft();if(!d.prediction){toast('先留下首次预测');return;}let t;if(stage==='road')t={signal,action};if(stage==='sound'){if(source==='teacher'&&(!live?.active||Date.now()-new Date(live.at).getTime()>5000)){toast('教师实测尚未连接，先等待或选模拟声音');return;}t={level:source==='teacher'?live.level:soundLevel,lamp:source==='teacher'?live.lamp:sound.lamp,source,at:Date.now()};if(source==='microphone'&&!micListening){toast('请先开启麦克风并允许使用');return;}}if(stage==='text'){if(!textOutput.trim()){toast('请先输入并选择汉字');return;}t={input:textInput||textOutput,output:textOutput,source};}if(stage==='door')t={x:door.personX,open:door.doorOpen,at:Date.now()};d.trials.push(t);d.trials=d.trials.slice(-30);observationPending=false;changed();renderTrials();}
+setInterval(async()=>{if(stage!=='sound'||source!=='teacher'||!scene)return;try{live={...await api('/api/live'),clientReceivedAt:Date.now()};updateScene();}catch{live=null;updateScene();}},700);
+function addTrial(){const d=draft();if(!d.prediction){toast('先留下首次预测');return;}let t;if(stage==='road')t={signal,action};if(stage==='sound'){const shared=readSharedLight(live);if(source==='teacher'&&!shared.fresh){toast('教师实测尚未连接，先等待或选模拟声音');return;}t={level:source==='teacher'?shared.level:soundLevel,lamp:source==='teacher'?shared.lamp:sound.lamp,source,at:Date.now()};if(source==='microphone'&&!micListening){toast('请先开启麦克风并允许使用');return;}}if(stage==='text'){if(!textOutput.trim()){toast('请先输入并选择汉字');return;}t={input:textInput||textOutput,output:textOutput,source};}if(stage==='door')t={x:door.personX,open:door.doorOpen,at:Date.now()};d.trials.push(t);d.trials=d.trials.slice(-30);observationPending=false;changed();renderTrials();}
 function renderTrials(){const ts=draft().trials||[];$('trials').innerHTML=ts.length?ts.slice(-6).map(t=>'<p>'+escape(stage==='road'?(t.signal==='red'?'红灯':'绿灯')+' → '+(t.action==='stop'?'等待':'确认路况后通行'):stage==='sound'?({simulation:'模拟',microphone:'本机实测',teacher:'教师实测观察'}[t.source])+' · 相对强弱 '+Math.round(t.level*100)+' → '+(t.lamp?'亮':'不亮'):stage==='text'?'输入 '+t.input+' → '+t.output+'（'+(t.source==='keyboard'?'亲自输入':'模拟输入')+'）':(t.x>=.65?'检测区内':'检测区外')+' → '+(t.open?'开启':'关闭'))+'</p>').join(''):'<p>预测后操作，再记录。这里只保留关键结果。</p>';}
 $('record').onclick=addTrial;
 $('submit').onclick=()=>{const d=draft();d.submitted=true;const result=R.assess(stage,d);submittedOnce=true;persist();$('feedback').className='feedback'+(result.pass?' success':'');$('feedback').textContent=result.pass?'本次操作、解释与迁移已符合本关目标。'+(mode==='student'?'同步后获得本关积分。':'演示通过，不写入班级统计。'):result.errors.join('；');$('next').hidden=!result.pass;$('submit').hidden=result.pass;if(result.pass&&mode!=='student'&&!sHas(stage)){state.awards.push({stage,points:10,created:Date.now()});state.points+=10;refreshNav();}refreshGuide();};

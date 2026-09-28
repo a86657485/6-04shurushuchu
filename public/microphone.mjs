@@ -20,7 +20,7 @@ export class Microphone {
     if (this.context || this.starting) return;
     const session = ++this.session;
     if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
-      this.onStatus({ state: 'error', message: '这个访问地址无法使用麦克风。教师机请使用 localhost 本机入口，其他设备需可信的 HTTPS 入口；也可选择模拟声音。' });
+      this.onStatus({ state: 'error', message: `当前局域网IP地址不能直接采声。教师电脑本机打开 http://localhost:${window.location?.port || '8794'}/teacher 或 /demo，无需 HTTPS；学生电脑可选择“观察教师现场实测”或“模拟声音”。若每台学生电脑都要独立采声，需使用可信 HTTPS。` });
       return;
     }
     this.starting = true;

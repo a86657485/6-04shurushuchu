@@ -82,7 +82,7 @@ function createService(options={}){
     const feedback=e.questions.map(q=>({...q,correct:answers[q.id]===q.answer,chosen:answers[q.id]}));const result={id:e.id,score:feedback.filter(q=>q.correct).length*5,answers:Object.fromEntries(e.questions.map(q=>[q.id,answers[q.id]])),feedback,created:now()};e.submitted=result;const data=state(s);data.quizAttempts.push(result);delete data.currentExam;
     db.exec('BEGIN IMMEDIATE');try{db.prepare('UPDATE exams SET json=? WHERE id=?').run(JSON.stringify(e),e.id);save(data);db.exec('COMMIT');}catch(error){db.exec('ROLLBACK');throw error;}return json(res,200,result);
    }
-   if(p==='/api/live'&&req.method==='GET')return json(res,200,live);
+   if(p==='/api/live'&&req.method==='GET')return json(res,200,{...live,serverNow:Date.now()});
    if(p==='/api/teacher/login'&&req.method==='POST'){
     const ip=req.socket.remoteAddress,entry=attempts.get(ip)||{count:0,since:Date.now()};if(Date.now()-entry.since>60000){entry.count=0;entry.since=Date.now();}if(entry.count>=10)fail(429,'尝试过多，请一分钟后再试');
     const supplied=crypto.createHash('sha256').update(String(body.password||'')).digest(),expected=crypto.createHash('sha256').update(teacherPassword).digest();if(!crypto.timingSafeEqual(supplied,expected)){entry.count++;attempts.set(ip,entry);fail(401,'教师密码不正确');}attempts.delete(ip);setSession(req,res,'teacher');return json(res,200,{ok:true});

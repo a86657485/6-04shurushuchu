@@ -57,6 +57,8 @@ test('不安全的访问地址给出错误，不申请麦克风或伪造模拟�
   assert.equal(requests, 0);
   assert.equal(statuses.at(-1).state, 'error');
   assert.match(statuses.at(-1).message, /localhost/);
+  assert.match(statuses.at(-1).message, /本机.*无需.*HTTPS/);
+  assert.match(statuses.at(-1).message, /观察教师现场实测/);
   assert.equal(samples.length, 0);
 });
 
