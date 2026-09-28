@@ -4,11 +4,12 @@ import {readSharedLight} from './shared-light.mjs?v=3';
 import {ClassroomSync,api,download,escape,uniqueId} from './sync.mjs?v=1';
 import {activities,sceneObservations} from './activities.mjs?v=1';
 import {chooseHintTarget} from './hint-guide.mjs?v=1';
+import {renderProcessFlow} from './process-flow.mjs?v=4';
 import {QuizView} from './quiz.mjs?v=1';
 import {RobotTrial} from './robot-trial.mjs?v=1';
 const $=id=>document.getElementById(id),R=window.LessonRules;
 const mode=location.pathname==='/test'?'test':location.pathname==='/demo'?'demo':'student';
-let state,stage='road',drafts={},scene,welcomeScene,quiz,testExamples,hintCount=0,signal='red',action='stop',sound=R.newSound(),soundLevel=0,source='simulation',micListening=false,live=null,door={until:0,doorOpen:false,personX:.1},textInput='',textOutput='',submittedOnce=false,robotTrial=null,guideActive=false,hintBaseText='',observationPending=false;
+let state,stage='road',drafts={},scene,welcomeScene,quiz,testExamples,hintCount=0,signal='red',action='stop',sound=R.newSound(),soundLevel=0,source='simulation',micListening=false,live=null,door={until:0,doorOpen:false,personX:.1},textInput='',textOutput='',submittedOnce=false,robotTrial=null,activeDiagramPart='input',guideActive=false,hintBaseText='',observationPending=false;
 const sync=new ClassroomSync((message,pending)=>{$('sync-status').textContent=message;$('sync-status').className=pending?'warning':'';},s=>{state=s;refreshNav();});
 function toast(message){$('toast').textContent=message;$('toast').hidden=false;setTimeout(()=>$('toast').hidden=true,4000);}
 function storageKey(){return 'lesson4-drafts:'+state.student.id+':'+state.round;}
@@ -39,9 +40,32 @@ async function enter(s){state=s;$('login').hidden=true;$('learning').hidden=fals
  scene=new CampusScene($('scene'));await scene.init();stage=R.stages.find(s=>!sHas(s.id))?.id||'door';renderStage();quiz=new QuizView($('quiz-page'),{getState:()=>state,mode,examples:testExamples,onState:s=>{state=s;refreshNav();},onExit:()=>navigate(stage)});refreshNav();}
 function sHas(id){return (state.awards||[]).some(a=>a.stage===id);}
 function navigate(id){robotTrial?.destroy();robotTrial=null;mic.stop();if(id==='quiz'){$('stage-page').hidden=true;$('end-page').hidden=true;$('quiz-page').hidden=false;quiz.open();return;}if(id==='report')return report();$('stage-page').hidden=false;$('end-page').hidden=true;$('quiz-page').hidden=true;stage=id;renderStage();refreshNav();}
-function renderStage(){hintCount=draft().hints||0;submittedOnce=false;guideActive=false;hintBaseText='';observationPending=false;sound=R.newSound();soundLevel=0;source='simulation';door={until:0,doorOpen:false,personX:.1};textInput='';textOutput='';signal='red';action='stop';live=null;const a=activities[stage];$('chapter').textContent='必做第'+(R.stages.findIndex(s=>s.id===stage)+1)+'站 · 本关10积分';$('stage-title').textContent=a.title;$('stage-goal').textContent=a.goal;$('story-text').textContent=a.story;$('scene-note').textContent=a.note;renderScenePhoto();$('story').hidden=false;$('story-open').hidden=true;$('feedback').textContent='';$('hint-text').textContent='';$('submit').hidden=false;$('next').hidden=true;scene.setStage(stage);scene.onInteract=event=>{if(event.type==='position'&&stage==='door'){door=R.stepDoor(door,event.personX,Date.now());observationPending=true;const slider=$('person-x');if(slider)slider.value=event.personX*100;updateScene();refreshGuide();}else if(event.type==='toggleSignal'&&stage==='road'){signal=signal==='red'?'green':'red';updateScene();refreshGuide();}else if(event.type==='requestSound')toast('选择声音来源；实测需开启麦克风，模拟用声音按钮。');else if(event.type==='focusText')$('hanzi-input')?.focus();};renderPrediction();renderControls();renderTrials();renderDiagram();renderTransfer();updateScene();refreshGuide();}
+function renderStage(){hintCount=draft().hints||0;submittedOnce=false;guideActive=false;hintBaseText='';observationPending=false;sound=R.newSound();soundLevel=0;source='simulation';door={until:0,doorOpen:false,personX:.1};textInput='';textOutput='';signal='red';action='stop';live=null;activeDiagramPart=['input','compute','output'].find(part=>!draft().diagram[part])||'input';const a=activities[stage];$('chapter').textContent='必做第'+(R.stages.findIndex(s=>s.id===stage)+1)+'站 · 本关10积分';$('stage-title').textContent=a.title;$('stage-goal').textContent=a.goal;$('story-text').textContent=a.story;$('scene-note').textContent=a.note;renderScenePhoto();$('story').hidden=false;$('story-open').hidden=true;$('feedback').textContent='';$('hint-text').textContent='';$('submit').hidden=false;$('next').hidden=true;scene.setStage(stage);scene.onInteract=event=>{if(event.type==='position'&&stage==='door'){door=R.stepDoor(door,event.personX,Date.now());observationPending=true;const slider=$('person-x');if(slider)slider.value=event.personX*100;updateScene();refreshGuide();}else if(event.type==='toggleSignal'&&stage==='road'){signal=signal==='red'?'green':'red';updateScene();refreshGuide();}else if(event.type==='requestSound')toast('选择声音来源；实测需开启麦克风，模拟用声音按钮。');else if(event.type==='focusText')$('hanzi-input')?.focus();};renderPrediction();renderControls();renderTrials();renderDiagram();renderTransfer();updateScene();refreshGuide();}
 function orderedOptions(opts,key){let n=0;for(const c of state.student.id+stage+key)n=(n+c.charCodeAt(0))%3;return [...opts.slice(n),...opts.slice(0,n)];}
-function renderDiagram(){const a=activities[stage],d=draft();$('diagram').innerHTML='<h3>把实验解释成三个环节</h3>'+Object.entries(a.diagram).map(([part,opts],i)=>`<div class="diagram-row"><label for="diagram-${part}">${['输入','计算','输出'][i]}</label><select id="diagram-${part}"><option value="">选择相应描述</option>${orderedOptions(opts,part).map(([v,t])=>`<option value="${v}" ${d.diagram?.[part]===v?'selected':''}>${t}</option>`).join('')}</select></div>`).join('');for(const part of ['input','compute','output'])$('diagram-'+part).onchange=e=>{draft().diagram||={};draft().diagram[part]=e.target.value;changed();};}
+function renderDiagram(){
+ const a=activities[stage],d=draft();
+ $('diagram').innerHTML='<h3>搭建工作过程流程图</h3>'+renderProcessFlow(a.diagram,d.diagram,activeDiagramPart,orderedOptions);
+ for(const part of ['input','compute','output']){
+  $(`diagram-${part}`).onclick=()=>{
+   activeDiagramPart=part;
+   renderDiagram();
+   refreshGuide();
+   $(`diagram-${part}`).focus();
+  };
+ }
+ $('diagram').querySelectorAll('[data-flow-value]').forEach(button=>{
+  button.onclick=()=>{
+   const part=activeDiagramPart,value=button.dataset.flowValue;
+   if(!a.diagram[part].some(([candidate])=>candidate===value))return;
+   draft().diagram[part]=value;
+   changed();
+   activeDiagramPart=['input','compute','output'].find(step=>!draft().diagram[step])||part;
+   renderDiagram();
+   refreshGuide();
+   $(`diagram-${activeDiagramPart}`).focus();
+  };
+ });
+}
 function renderTransfer(){const a=activities[stage],d=draft();$('transfer').innerHTML=`<label for="transfer-choice">换个条件，再想一想：${a.transferQuestion}<select id="transfer-choice"><option value="">选择你的判断</option>${orderedOptions(a.transfer,'transfer').map(([v,t])=>`<option value="${v}" ${d.transfer===v?'selected':''}>${t}</option>`).join('')}</select></label>`;$('transfer-choice').onchange=e=>{draft().transfer=e.target.value;changed();};}
 function renderControls(){let html='';if(stage==='road')html='<button id="red">红灯</button><button id="green">绿灯</button><button id="stop-person">停下等待</button><button id="go-person">确认安全后通行</button>';if(stage==='sound')html=`<label>声音来源<select id="sound-source"><option value="simulation">模拟声音 · 独立实验</option><option value="microphone">本机麦克风 · 实测</option><option value="teacher">观察教师现场实测</option></select></label><div id="sim-buttons" class="choice-row"><button id="quiet">安静</button><button id="soft">轻声</button><button id="loud">明显声音</button></div><div id="mic-controls" hidden><button id="mic-start">开启麦克风</button><button id="mic-stop">停止采声</button><button id="mic-calibrate">重新校准</button></div><div class="sound-meter"><i id="meter-fill"></i></div><small id="mic-message">当前使用模拟声音</small>`;
  if(stage==='text')html='<input type="text" id="hanzi-input" aria-label="输入汉字" placeholder="用中文输入法输入一句话"><button id="capture-text">记录输入汉字</button><button id="simulate-text">模拟“xiaoyuan → 校园”</button>';if(stage==='door')html='<label>来访者位置：远处 ← → 门口<input type="range" id="person-x" aria-label="来访者位置" min="0" max="100" value="10"></label><button id="far">回到远处</button><button id="near">靠近检测区</button>';$('controls').innerHTML=html;
