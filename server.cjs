@@ -100,5 +100,5 @@ function createService(options={}){
  });
  return {server,close:()=>db.close(),runtimeDir};
 }
-if(require.main===module){const service=createService();const port=Number(process.env.PORT)||8794;service.server.listen(port,'0.0.0.0',()=>{console.log(`教师本机入口：http://localhost:${port}/teacher（免密码，仅本机可访问）`);for(const net of Object.values(os.networkInterfaces()).flat()){if(net&&net.family==='IPv4'&&!net.internal)console.log(`学生局域网入口：http://${net.address}:${port}`);}});const shutdown=()=>service.server.close(()=>{service.close();process.exit(0);});process.on('SIGTERM',shutdown);process.on('SIGINT',shutdown);}
+if(require.main===module){const service=createService();const port=Number(process.env.PORT)||8794;service.server.listen(port,'0.0.0.0',()=>{console.log(`教师本机入口：http://localhost:${port}/teacher（免密码，仅本机可访问）`);for(const [name,nets] of Object.entries(os.networkInterfaces())){if(!/^en\d+$/.test(name))continue;for(const net of nets){if(net.family==='IPv4'&&!net.internal)console.log(`学生局域网入口：http://${net.address}:${port}`);}}});const shutdown=()=>service.server.close(()=>{service.close();process.exit(0);});process.on('SIGTERM',shutdown);process.on('SIGINT',shutdown);}
 module.exports={createService};

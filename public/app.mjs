@@ -5,7 +5,7 @@ import {ClassroomSync,api,download,escape,uniqueId} from './sync.mjs?v=1';
 import {activities,sceneObservations} from './activities.mjs?v=1';
 import {chooseHintTarget} from './hint-guide.mjs?v=1';
 import {renderProcessFlow} from './process-flow.mjs?v=4';
-import {QuizView} from './quiz.mjs?v=2';
+import {QuizView} from './quiz.mjs?v=3';
 import {RobotTrial} from './robot-trial.mjs?v=1';
 const $=id=>document.getElementById(id),R=window.LessonRules;
 const mode=location.pathname==='/test'?'test':location.pathname==='/demo'?'demo':'student';
