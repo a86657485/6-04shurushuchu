@@ -24,3 +24,4 @@
 .reward-2048 .note{font-size:12px}.reward-2048 .reward-credit{font-size:11px;color:#796c5c;margin:8px 0 0}
 @media(max-width:1000px){.reward-2048-layout{grid-template-columns:1fr}.reward-2048 iframe{max-width:560px;margin:auto}.reward-2048 aside{position:static}}
 @media(max-width:620px){main{padding-left:12px;padding-right:12px}#quiz-page .result-card{padding:16px}.reward-2048{padding:12px}.reward-2048 h2{font-size:21px}.reward-2048-layout{gap:12px}}
+.exam-review{margin-top:26px}.exam-review h2{font-size:19px;margin:20px 0 5px}.exam-review>p{font-size:13px;color:var(--muted)}.exam-review details[open]{background:#fff8ed;border-left:3px solid var(--amber);padding:12px}.exam-review details p{font-size:14px;line-height:1.5;margin:8px 0}.exam-review details p b{color:var(--teal)}

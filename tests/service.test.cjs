@@ -49,6 +49,26 @@ test('exam returns twenty balanced questions without answers and grades only ful
   const submit={sid:'a',round:'r1',examId:exam.id,answers};const scored=await a('/api/exam/submit',submit);assert.equal(scored.data.score,100);assert.equal(scored.data.feedback.length,20);
   await a('/api/exam/submit',submit);assert.equal((await a('/api/me')).data.quizAttempts.length,1);
 });
+test('student can submit another full exam, keeping both attempts and wrong answer explanations',async t=>{
+  const f=await fixture(t),a=f.client();await a('/api/login',{classId:'601',id:'a'});
+  const first=(await a('/api/exam/create',{})).data;
+  const answers=Object.fromEntries(first.questions.map(q=>[q.id,0]));
+  const firstResult=(await a('/api/exam/submit',{sid:'a',round:'r1',examId:first.id,answers})).data;
+  assert.equal(firstResult.feedback.length,20);
+  const wrong=firstResult.feedback.find(q=>!q.correct);
+  assert.ok(wrong,'the chosen answers include a wrong item');
+  assert.equal(typeof wrong.options[wrong.answer],'string');
+  assert.ok(wrong.explanation.length>0);
+  const second=(await a('/api/exam/create',{})).data;
+  assert.notEqual(second.id,first.id);
+  assert.equal(second.questions.length,20);
+  assert.equal((await a('/api/exam/submit',{sid:'a',round:'r1',examId:second.id,answers:{}})).status,400);
+  const secondAnswers=Object.fromEntries(second.questions.map(q=>[q.id,0]));
+  const secondResult=(await a('/api/exam/submit',{sid:'a',round:'r1',examId:second.id,answers:secondAnswers})).data;
+  const state=(await a('/api/me')).data;
+  assert.deepEqual(state.quizAttempts.map(r=>r.id),[firstResult.id,secondResult.id]);
+  assert.equal(state.currentExam,undefined);
+});
 test('new rounds preserve history, reject old uploads and demo cannot create records',async t=>{
   const f=await fixture(t),a=f.client(),teacher=f.client(),demo=f.client();await a('/api/login',{classId:'601',id:'a'});
   await a('/api/event',{eventId:'one',sid:'a',round:'r1',stage:'road',record:{correct:true}});
