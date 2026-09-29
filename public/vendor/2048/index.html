@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>2048 · 数字合并体验</title>
+  <link rel="stylesheet" href="style/main.css">
+  <link rel="stylesheet" href="style/classroom.css">
+</head>
+<body>
+  <div class="container">
+    <div class="heading">
+      <h1 class="title">2048</h1>
+      <div class="scores-container">
+        <div class="score-container">0</div>
+        <div class="best-container">0</div>
+      </div>
+    </div>
+    <div class="above-game">
+      <p class="game-intro">让相同数字相遇，观察棋盘怎样变化。</p>
+      <button class="restart-button" type="button">新的一局</button>
+    </div>
+    <div class="game-container" aria-label="2048 数字棋盘">
+      <div class="game-message">
+        <p></p>
+        <div class="lower">
+          <a class="keep-playing-button" role="button" tabindex="0">继续玩</a>
+          <a class="retry-button" role="button" tabindex="0">再试一次</a>
+        </div>
+      </div>
+      <div class="grid-container">
+        <div class="grid-row"><div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div></div>
+        <div class="grid-row"><div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div></div>
+        <div class="grid-row"><div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div></div>
+        <div class="grid-row"><div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div><div class="grid-cell"></div></div>
+      </div>
+      <div class="tile-container"></div>
+    </div>
+    <div class="classroom-controls" aria-label="移动方向">
+      <button type="button" data-move="0" aria-label="向上移动">↑</button>
+      <div>
+        <button type="button" data-move="3" aria-label="向左移动">←</button>
+        <button type="button" data-move="2" aria-label="向下移动">↓</button>
+        <button type="button" data-move="1" aria-label="向右移动">→</button>
+      </div>
+    </div>
+    <p class="game-explanation">点击棋盘后可按方向键，也可点击方向按钮。相同数字碰到一起会合并，例如 2 + 2 → 4。</p>
+  </div>
+  <script src="js/bind_polyfill.js"></script>
+  <script src="js/classlist_polyfill.js"></script>
+  <script src="js/animframe_polyfill.js"></script>
+  <script src="js/keyboard_input_manager.js"></script>
+  <script src="js/html_actuator.js"></script>
+  <script src="js/grid.js"></script>
+  <script src="js/tile.js"></script>
+  <script src="js/local_storage_manager.js"></script>
+  <script src="js/game_manager.js"></script>
+  <script src="js/application.js"></script>
+  <script src="js/classroom-controls.js"></script>
+</body>
+</html>
