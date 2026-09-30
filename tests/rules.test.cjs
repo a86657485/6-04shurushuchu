@@ -12,3 +12,13 @@ test('连续声音延长保持、停声后新声音只记一次触发',()=>{
 test('门在人物检测区保持开启；离开后延时关闭',()=>{assert.equal(typeof R.stepDoor,'function');let s=R.stepDoor({until:0},.1,0);assert.equal(s.doorOpen,false);s=R.stepDoor(s,.8,100);assert.equal(s.doorOpen,true);s=R.stepDoor(s,.8,5000);s=R.stepDoor(s,.1,6000);assert.equal(s.doorOpen,true);s=R.stepDoor(s,.1,6600);assert.equal(s.doorOpen,false)});
 test('不能凭空图示或一次亮灯拿积分；解释及对照证据是必需条件',()=>{assert.equal(typeof R.assess,'function');assert.equal(R.assess('sound',{}).pass,false);let r=R.examples.sound;assert.equal(R.assess('sound',r).pass,true);assert.equal(R.assess('sound',{...r,diagram:{...r.diagram,input:'lamp'}}).pass,false);assert.equal(R.assess('sound',{...r,trials:r.trials.filter(x=>x.lamp)}).pass,false)});
 test('各关示例符合目标；改错后的当前版本须重新验证',()=>{assert.ok(R.stages);for(const s of R.stages){assert.equal(R.assess(s.id,R.examples[s.id]).pass,true);assert.equal(R.assess(s.id,{...R.examples[s.id],transfer:'wrong'}).pass,false)}});
+test('分步实验的检查项与服务端证据一致，缺一次对照就不能前进',()=>{
+ for(const stage of R.stages){
+  const checks=R.experimentChecks(stage.id,R.examples[stage.id]);
+  assert.ok(checks.length>=1);assert.ok(checks.every(c=>c.complete));
+  assert.ok(R.experimentChecks(stage.id,{trials:[]}).every(c=>!c.complete));
+ }
+ assert.equal(R.experimentChecks('sound',{trials:[{level:.1,lamp:false,source:'simulation'}]}).filter(c=>c.complete).length,1);
+ assert.equal(R.experimentChecks('sound',{trials:[{level:.1,lamp:false,source:'bogus'},{level:.9,lamp:true,source:'bogus'}]}).filter(c=>c.complete).length,0);
+ assert.equal(R.experimentChecks('door',{trials:[{x:.1,open:true},{x:.8,open:false}]}).filter(c=>c.complete).length,0);
+});
