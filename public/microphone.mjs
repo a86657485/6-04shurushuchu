@@ -1,14 +1,15 @@
 // Only measures relative microphone amplitude. LessonRules decides the lamp state.
 export class Microphone {
-  constructor({ onSample = () => {}, onStatus = () => {} } = {}) {
+  constructor({ onSample = () => {}, onStatus = () => {}, pauseWhenHidden = true } = {}) {
     this.onSample = onSample;
     this.onStatus = onStatus;
+    this.backgroundSampling = !pauseWhenHidden;
     this.session = 0;
     this.frame = 0;
     this.noiseFloor = 0;
     this.lastSample = 0;
     this.visibilityHandler = () => {
-      if (document.hidden && this.context) {
+      if (pauseWhenHidden && document.hidden && this.context) {
         this.stop();
         this.onStatus({ state: 'stopped', message: '页面已切到后台，麦克风已暂停。回来后可重新开启。' });
       }
@@ -38,13 +39,27 @@ export class Microphone {
       await this.context.resume();
       if (session !== this.session) return;
       this.source = this.context.createMediaStreamSource(stream);
-      this.analyser = this.context.createAnalyser();
-      this.analyser.fftSize = 1024;
-      this.samples = new Float32Array(this.analyser.fftSize);
-      this.source.connect(this.analyser);
-      // Deliberately never connect to destination: no replay, recording or upload.
-      this.calibrate();
-      this.read(session);
+      if (this.backgroundSampling) {
+        if (!this.context.audioWorklet || !window.AudioWorkletNode) throw new Error('unsupported_background_audio');
+        await this.context.audioWorklet.addModule('/microphone-level-worklet.js?v=1');
+        if (session !== this.session) return;
+        this.processor = new window.AudioWorkletNode(this.context, 'lesson-microphone-level');
+        this.processor.port.onmessage = event => {
+          if (session === this.session && Number.isFinite(event.data?.raw)) this.processRawSample(event.data.raw, performance.now());
+        };
+        this.processor.onprocessorerror = () => {this.stop();this.onStatus({state:'error',message:'声音分析已停止，请重新开启麦克风。'});};
+        this.source.connect(this.processor);
+        // The worklet writes zeros only: this keeps background analysis running without replaying sound.
+        this.processor.connect(this.context.destination);
+        this.calibrate();
+      } else {
+        this.analyser = this.context.createAnalyser();
+        this.analyser.fftSize = 1024;
+        this.samples = new Float32Array(this.analyser.fftSize);
+        this.source.connect(this.analyser);
+        this.calibrate();
+        this.read(session);
+      }
     } catch (error) {
       if (session !== this.session) return;
       this.release();
@@ -54,7 +69,7 @@ export class Microphone {
         NotReadableError: '麦克风暂时无法使用，可能被其他程序占用。关闭占用程序后重试，或选择模拟声音。',
         SecurityError: '浏览器限制了麦克风访问。请检查本机入口或 HTTPS 设置。'
       };
-      this.onStatus({ state: 'error', message: messages[error.name] || '麦克风未能开启。请检查设备和浏览器权限，或选择模拟声音。' });
+      this.onStatus({ state: 'error', message: (error.message==='unsupported_background_audio'?'当前浏览器不支持后台采声。请用本机教师网址保持前台测试，或换用支持后台音频的浏览器。':messages[error.name] || '麦克风未能开启。请检查设备和浏览器权限，或选择模拟声音。') });
     } finally {
       if (session === this.session) this.starting = false;
     }
@@ -79,26 +94,28 @@ export class Microphone {
       mean /= this.samples.length;
       let sum = 0;
       for (const value of this.samples) sum += (value - mean) ** 2;
-      const raw = Math.sqrt(sum / this.samples.length);
-      let level = 0;
-      if (this.calibration) {
-        this.calibration.push(raw);
-        if (now >= this.calibrationEnd) {
-          this.calibration.sort((a, b) => a - b);
-          this.noiseFloor = this.calibration[Math.floor(this.calibration.length * 0.7)] || 0;
-          this.calibration = null;
-          this.onStatus({ state: 'listening', message: '正在采集真实声音。请正常说话或轻拍手，观察响度和灯的变化。此数值是相对响度，不是分贝。' });
-        }
-      } else {
-        const aboveNoise = Math.max(0, raw - this.noiseFloor * 1.3 - 0.001);
-        const target = Math.min(1, aboveNoise / Math.max(0.018, this.noiseFloor * 4));
-        // Fast attack retains brief claps; gradual release avoids flickering levels.
-        this.smoothedLevel += (target - this.smoothedLevel) * (target > this.smoothedLevel ? 0.7 : 0.32);
-        level = Math.max(0, Math.min(1, this.smoothedLevel));
-      }
-      this.onSample({ level, raw, source: 'microphone' });
+      this.processRawSample(Math.sqrt(sum / this.samples.length), now);
     }
     this.frame = requestAnimationFrame(() => this.read(session));
+  }
+
+  processRawSample(raw, now) {
+    let level = 0;
+    if (this.calibration) {
+      this.calibration.push(raw);
+      if (now >= this.calibrationEnd) {
+        this.calibration.sort((a, b) => a - b);
+        this.noiseFloor = this.calibration[Math.floor(this.calibration.length * 0.7)] || 0;
+        this.calibration = null;
+        this.onStatus({ state: 'listening', message: '正在采集真实声音。请正常说话或轻拍手，观察响度和灯的变化。此数值是相对响度，不是分贝。' });
+      }
+    } else {
+      const aboveNoise = Math.max(0, raw - this.noiseFloor * 1.3 - 0.001);
+      const target = Math.min(1, aboveNoise / Math.max(0.018, this.noiseFloor * 4));
+      this.smoothedLevel += (target - this.smoothedLevel) * (target > this.smoothedLevel ? 0.7 : 0.32);
+      level = Math.max(0, Math.min(1, this.smoothedLevel));
+    }
+    this.onSample({ level, raw, source: 'microphone' });
   }
 
   release() {
@@ -106,12 +123,14 @@ export class Microphone {
     this.frame = 0;
     this.source?.disconnect();
     this.analyser?.disconnect();
+    if (this.processor) {this.processor.port.onmessage=null;this.processor.port.close();this.processor.disconnect();this.processor.onprocessorerror=null;}
     this.stream?.getTracks().forEach(track => track.stop());
     if (this.context && this.context.state !== 'closed') this.context.close().catch(() => {});
     this.context = null;
     this.stream = null;
     this.source = null;
     this.analyser = null;
+    this.processor = null;
     this.calibration = null;
   }
 

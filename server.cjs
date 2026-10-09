@@ -6,10 +6,12 @@ const crypto=require('node:crypto');
 const os=require('node:os');
 const {DatabaseSync}=require('node:sqlite');
 const quiz=require('./quiz.cjs');
+const {isTeacherAddress,teacherOrigins}=require('./teacher-access.cjs');
 const BASE=__dirname;
 const CLASSES=['601','602','603','604','605','606'];
 const COOKIE_STUDENT='lesson4_student';
 function createService(options={}){
+ const networkInterfaces=options.networkInterfaces||os.networkInterfaces;
  const runtimeDir=options.runtimeDir||path.join(BASE,'runtime');fs.mkdirSync(runtimeDir,{recursive:true,mode:0o700});
  const oldTeacherPassword=path.join(runtimeDir,'teacher-password.txt');
  if(fs.existsSync(oldTeacherPassword))fs.unlinkSync(oldTeacherPassword);
@@ -40,7 +42,7 @@ function createService(options={}){
  function cookieSession(req){const token=(req.headers.cookie||'').split(';').map(v=>v.trim()).find(v=>v.startsWith(COOKIE_STUDENT+'='))?.slice(COOKIE_STUDENT.length+1);if(!token)return null;return db.prepare('SELECT * FROM sessions WHERE token=? AND role=? AND expires>?').get(token,'student',Date.now());}
  function json(res,status,data){res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(data));}
  function fail(status,message,extra={}){throw Object.assign(new Error(message),{status,...extra});}
- function teacher(req){if(!['127.0.0.1','::1','::ffff:127.0.0.1'].includes(req.socket.remoteAddress))fail(403,'教师入口仅限教师电脑本机访问');}
+ function teacher(req){if(!isTeacherAddress(req.socket.remoteAddress,networkInterfaces()))fail(403,'教师入口仅限教师电脑本机访问');}
  function signedStudent(req){const session=cookieSession(req);if(!session)fail(401,'请先选择班级与姓名');const s=student(session.sid);if(!s)fail(401,'学生身份不存在');return s;}
  function matchIdentity(req,body){const s=signedStudent(req);if(body.sid!==s.id)fail(403,'记录身份与当前学生不一致');if(body.round!==roundFor(s))fail(409,'课堂已经开启新轮次，旧轮次记录未覆盖，请刷新查看',{round:roundFor(s)});return s;}
  function setSession(res,sid){const token=crypto.randomBytes(24).toString('hex');db.prepare('INSERT INTO sessions VALUES(?,?,?,?)').run(token,'student',sid,Date.now()+7*86400000);res.setHeader('Set-Cookie',`${COOKIE_STUDENT}=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=604800`);}
@@ -84,21 +86,22 @@ function createService(options={}){
    if(p==='/api/live'&&req.method==='GET')return json(res,200,{...live,serverNow:Date.now()});
    if(p.startsWith('/api/teacher/')){
     teacher(req);
+    if(p==='/api/teacher/microphone-context'&&req.method==='GET'){const port=server.address().port;return json(res,200,{microphoneUrl:`http://localhost:${port}/teacher-microphone`,allowedOrigins:teacherOrigins(port,networkInterfaces())});}
     if(p==='/api/teacher/class'&&req.method==='GET'){const classId=url.searchParams.get('class');if(!CLASSES.includes(classId))fail(400,'请选择六年级班级');const students=db.prepare('SELECT * FROM students WHERE classId=? ORDER BY rowid').all(classId).filter(s=>rosterIds.has(s.id)||s.manual).map(s=>{s.manual=!!s.manual;const current=state(s);current.roundHistory=db.prepare('SELECT json FROM states WHERE sid=? AND round<>?').all(s.id,current.round).map(r=>JSON.parse(r.json));return current;});return json(res,200,{classId,at:now(),round:'r'+db.prepare('SELECT n FROM rounds WHERE classId=?').get(classId).n,students});}
     if(p==='/api/teacher/answers'&&req.method==='GET')return json(res,200,{questions:quiz.questions,stages,goals:rules.goals||{},examples:rules.examples||{}});
     if(p==='/api/teacher/new-round'&&req.method==='POST'){if(!CLASSES.includes(body.classId))fail(400,'请选择六年级班级');db.prepare('UPDATE rounds SET n=n+1 WHERE classId=?').run(body.classId);return json(res,200,{ok:true,classId:body.classId,round:'r'+db.prepare('SELECT n FROM rounds WHERE classId=?').get(body.classId).n});}
     if(p==='/api/teacher/live'&&req.method==='POST'){if(!Number.isFinite(body.level)||body.level<0||body.level>1||typeof body.lamp!=='boolean'||typeof body.active!=='boolean'||!Number.isInteger(body.triggerCount)||body.triggerCount<0)fail(400,'声音观察数据不正确');live={at:now(),level:body.level,lamp:body.lamp,active:body.active,triggerCount:body.triggerCount};return json(res,200,live);}
    }
    if(p.startsWith('/api/'))fail(404,'接口不存在');
-   if(p==='/test')teacher(req);
-   const aliases={'/':'index.html','/teacher':'teacher.html','/test':'index.html','/demo':'index.html'};
+   if(['/test','/teacher-microphone','/teacher-microphone.html'].includes(p))teacher(req);
+   const aliases={'/':'index.html','/teacher':'teacher.html','/teacher-microphone':'teacher-microphone.html','/test':'index.html','/demo':'index.html'};
    let relative=aliases[p];if(!relative){let decoded;try{decoded=decodeURIComponent(p);}catch{fail(400,'地址格式不正确');}if(decoded.includes('..')||decoded.includes('\\')||decoded.includes('\0'))fail(404,'文件不存在');relative=decoded.replace(/^\/+/,'');}
    const publicRoot=path.join(BASE,'public'),file=path.resolve(publicRoot,relative);if(!file.startsWith(publicRoot+path.sep))fail(404,'文件不存在');if(!fs.existsSync(file)||!fs.statSync(file).isFile())fail(404,'文件不存在');if(!fs.realpathSync(file).startsWith(fs.realpathSync(publicRoot)+path.sep))fail(404,'文件不存在');
-   if(fs.realpathSync(file)===fs.realpathSync(path.join(publicRoot,'teacher.html')))teacher(req);
+   if(['teacher.html','teacher-microphone.html'].some(name=>fs.existsSync(path.join(publicRoot,name))&&fs.realpathSync(file)===fs.realpathSync(path.join(publicRoot,name))))teacher(req);
    const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.mjs':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json','.png':'image/png','.jpg':'image/jpeg','.svg':'image/svg+xml','.glb':'model/gltf-binary','.woff2':'font/woff2','.wav':'audio/wav'};res.writeHead(200,{'Content-Type':types[path.extname(file)]||'application/octet-stream','Cache-Control':['.html','.js','.mjs','.css'].includes(path.extname(file))?'no-cache':'public, max-age=3600'});if(req.method==='HEAD')return res.end();fs.createReadStream(file).pipe(res);
   }catch(e){if(res.headersSent){res.destroy();return;}json(res,e.status||500,{error:e.status?e.message:'服务暂时无法保存，请稍后重试',...(e.choices?{choices:e.choices}:{}),...(e.round?{round:e.round}:{} )});if(!e.status)console.error('课堂服务错误:',e.message);}
  });
  return {server,close:()=>db.close(),runtimeDir};
 }
-if(require.main===module){const service=createService();const port=Number(process.env.PORT)||8794;service.server.listen(port,'0.0.0.0',()=>{console.log(`教师本机入口：http://localhost:${port}/teacher（免密码，仅本机可访问）`);for(const [name,nets] of Object.entries(os.networkInterfaces())){if(!/^en\d+$/.test(name))continue;for(const net of nets){if(net.family==='IPv4'&&!net.internal)console.log(`学生局域网入口：http://${net.address}:${port}`);}}});const shutdown=()=>service.server.close(()=>{service.close();process.exit(0);});process.on('SIGTERM',shutdown);process.on('SIGINT',shutdown);}
+if(require.main===module){const service=createService();const port=Number(process.env.PORT)||8794;service.server.listen(port,'0.0.0.0',()=>{console.log(`教师本机入口：http://localhost:${port}/teacher（免密码，限教师电脑访问）`);for(const [name,nets] of Object.entries(os.networkInterfaces())){if(!/^en\d+$/.test(name))continue;for(const net of nets){if(net.family==='IPv4'&&!net.internal)console.log(`学生局域网入口：http://${net.address}:${port}`);}}});const shutdown=()=>service.server.close(()=>{service.close();process.exit(0);});process.on('SIGTERM',shutdown);process.on('SIGINT',shutdown);}
 module.exports={createService};

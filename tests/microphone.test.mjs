@@ -17,6 +17,7 @@ beforeEach(() => {
   replace('navigator', { mediaDevices: { getUserMedia: async () => ({ getTracks: () => [{ stop() { trackStops++; } }] }) } });
   class AudioContextStub {
     state = 'running';
+    audioWorklet = {addModule:async()=>{}};
     async resume() {}
     createMediaStreamSource() {
       return { connect() { connections++; }, disconnect() {} };
@@ -33,6 +34,7 @@ beforeEach(() => {
     async close() { contextCloses++; this.state = 'closed'; }
   }
   replace('window', { isSecureContext: true, AudioContext: AudioContextStub });
+  window.AudioWorkletNode=class {port={onmessage:null,close(){}};connect(){}disconnect(){}};
 });
 
 afterEach(() => {
@@ -43,8 +45,8 @@ afterEach(() => {
   });
 });
 
-function microphone() {
-  const instance = new Microphone({ onStatus: status => statuses.push(status), onSample: sample => samples.push(sample) });
+function microphone(options={}) {
+  const instance = new Microphone({ onStatus: status => statuses.push(status), onSample: sample => samples.push(sample),...options });
   microphones.push(instance);
   return instance;
 }
@@ -60,6 +62,19 @@ test('不安全的访问地址给出错误，不申请麦克风或伪造模拟�
   assert.match(statuses.at(-1).message, /本机.*无需.*HTTPS/);
   assert.match(statuses.at(-1).message, /观察教师现场实测/);
   assert.equal(samples.length, 0);
+});
+
+test('教师授权窗口切到后台仍可采声，关闭采声时释放设备；普通页面仍会暂停',async()=>{
+ const helper=microphone({pauseWhenHidden:false});await helper.start();document.hidden=true;helper.visibilityHandler();assert.equal(trackStops,0);helper.stop();assert.equal(trackStops,1);
+ document.hidden=false;const regular=microphone();await regular.start();document.hidden=true;regular.visibilityHandler();assert.equal(trackStops,2);
+});
+
+test('授权窗口不用动画帧也能由音频线程样本完成校准、采声和停止',async()=>{
+ const helper=microphone({pauseWhenHidden:false});await helper.start();document.hidden=true;
+ assert.ok(helper.processor,'后台采声使用AudioWorklet');
+ now=2600;helper.processor.port.onmessage({data:{raw:.001}});assert.equal(statuses.at(-1).state,'listening');
+ now=2700;helper.processor.port.onmessage({data:{raw:.1}});assert.ok(samples.at(-1).level>.55);
+ const callback=helper.processor.port.onmessage;helper.stop();const count=samples.length;callback({data:{raw:.1}});assert.equal(samples.length,count);
 });
 
 test('设备缺失提供具体提示并保持停止状态', async () => {
