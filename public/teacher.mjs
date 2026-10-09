@@ -1,7 +1,7 @@
 import {api,download,escape} from './sync.mjs?v=1';
 import {CampusScene} from './scene.mjs?v=1';
-import {Microphone} from './microphone.mjs?v=2';
-import {TeacherMicrophoneBridge} from './microphone-bridge.mjs?v=1';
+import {Microphone} from './microphone.mjs?v=3';
+import {TeacherMicrophoneBridge} from './microphone-bridge.mjs?v=2';
 import {summarizeClass} from './teacher-stats.mjs?v=2';
 import {renderClassCharts} from './teacher-charts.mjs?v=2';
 const $=id=>document.getElementById(id),R=window.LessonRules;let data,selected=null,chartStatus=null,chartStage=null,requestNumber=0,teacherScene,sound=R.newSound(),level=0,active=false,sampleAt=0,sharing=false,auth=false,mode='3d',microphoneBridge=null;
@@ -48,5 +48,5 @@ setInterval(()=>{if(!teacherScene)return;if(Date.now()-sampleAt>1000)level=0;sou
 async function share(){if(!auth||sharing)return;sharing=true;try{await api('/api/teacher/live',{level:active?level:0,lamp:sound.lamp,active,triggerCount:sound.triggerCount});$('teacher-live-sync').textContent=(active?'现场事件已共享给学生':'当前没有正在采声')+' · '+new Date().toLocaleTimeString();}catch(e){$('teacher-live-sync').textContent='现场事件未同步：'+e.message;}finally{sharing=false;}}
 setInterval(()=>{if(active)share();},350);setInterval(refresh,5000);
 
-window.addEventListener('pagehide',()=>{microphoneBridge?.destroy();mic.stop();});
+window.addEventListener('pagehide',()=>{microphoneBridge?.stop();mic.stop();});
 enter().catch(e=>{$('class-status').textContent='教师大屏打开失败：'+e.message;});

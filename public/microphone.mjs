@@ -21,7 +21,7 @@ export class Microphone {
     if (this.context || this.starting) return;
     const session = ++this.session;
     if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
-      this.onStatus({ state: 'error', message: `当前局域网IP地址不能直接采声。教师电脑本机打开 http://localhost:${window.location?.port || '8794'}/teacher 或 /demo，无需 HTTPS；学生电脑可选择“观察教师现场实测”或“模拟声音”。若每台学生电脑都要独立采声，需使用可信 HTTPS。` });
+      this.onStatus({ state: 'error', message: '请选择页面提供的声音来源后继续实验。' });
       return;
     }
     this.starting = true;

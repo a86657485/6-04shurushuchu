@@ -17,9 +17,9 @@ export class TeacherMicrophoneBridge{
   if(this.popup&&!this.popup.closed){this.popup.focus();if(this.ready)this.command('start');return;}
   this.channel=uniqueId();this.ready=false;
   const url=new URL(this.microphoneUrl);url.searchParams.set('parentOrigin',this.hostWindow.location.origin);url.searchParams.set('channel',this.channel);
-  this.popup=this.hostWindow.open(url.href,'lesson4-teacher-microphone','popup,width=560,height=660');
+  this.popup=this.hostWindow.open(url.href,'lesson4-teacher-microphone-'+this.channel,'popup,width=560,height=660');
   if(!this.popup){this.onStatus({state:'error',message:'麦克风窗口被拦截。请允许此页面弹窗，然后再次点击开启。'});return;}
-  this.onStatus({state:'calibrating',message:'本机麦克风窗口已打开。请在新窗口允许使用麦克风，授权后会同步到当前大屏。'});
+  this.onStatus({state:'calibrating',message:'本机麦克风窗口已打开。请在新窗口允许使用麦克风，授权后会同步到当前页面。'});
   this.hostWindow.clearInterval(this.monitor);
   this.monitor=this.hostWindow.setInterval(()=>{if(this.popup?.closed)this.stop();},500);
  }

@@ -58,9 +58,8 @@ test('不安全的访问地址给出错误，不申请麦克风或伪造模拟�
   await microphone().start();
   assert.equal(requests, 0);
   assert.equal(statuses.at(-1).state, 'error');
-  assert.match(statuses.at(-1).message, /localhost/);
-  assert.match(statuses.at(-1).message, /本机.*无需.*HTTPS/);
-  assert.match(statuses.at(-1).message, /观察教师现场实测/);
+  assert.doesNotMatch(statuses.at(-1).message, /当前局域网|localhost|HTTPS/);
+  assert.match(statuses.at(-1).message, /声音来源/);
   assert.equal(samples.length, 0);
 });
 
