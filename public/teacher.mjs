@@ -4,6 +4,7 @@ import {Microphone} from './microphone.mjs?v=3';
 import {TeacherMicrophoneBridge} from './microphone-bridge.mjs?v=2';
 import {summarizeClass} from './teacher-stats.mjs?v=2';
 import {renderClassCharts} from './teacher-charts.mjs?v=2';
+if(new URL(location.href).searchParams.has('key')){const url=new URL(location.href);url.searchParams.delete('key');history.replaceState(null,'',url.pathname+url.search+url.hash);}
 const $=id=>document.getElementById(id),R=window.LessonRules;let data,selected=null,chartStatus=null,chartStage=null,requestNumber=0,teacherScene,sound=R.newSound(),level=0,active=false,sampleAt=0,sharing=false,auth=false,mode='3d',microphoneBridge=null;
 for(let c=601;c<=606;c++)$('teacher-class').add(new Option(c+'班',String(c)));
 const date=v=>v?new Date(v).toLocaleTimeString('zh-CN',{hour12:false}):'未进入';
