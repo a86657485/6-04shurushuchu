@@ -1,4 +1,9 @@
-export async function api(url,data){const res=await fetch(url,{method:data===undefined?'GET':'POST',headers:data===undefined?{}:{'Content-Type':'application/json'},body:data===undefined?undefined:JSON.stringify(data)});const value=await res.json();if(!res.ok){const e=Error(value.error||'连接失败');e.status=res.status;e.data=value;throw e;}return value;}
+export async function api(url,data){
+ const res=await fetch(url,{method:data===undefined?'GET':'POST',headers:data===undefined?{}:{'Content-Type':'application/json'},body:data===undefined?undefined:JSON.stringify(data)});
+ const text=await res.text();let value;
+ try{value=JSON.parse(text);}catch{const e=Error('课堂服务未正常响应（'+res.status+'），请稍后重试或联系老师；本机待同步记录会保留。');e.status=res.status;throw e;}
+ if(!res.ok){const e=Error(value?.error||'课堂服务连接失败');e.status=res.status;e.data=value;throw e;}return value;
+}
 export function uniqueId(){if(crypto.randomUUID)return crypto.randomUUID();const b=crypto.getRandomValues(new Uint8Array(16));return Array.from(b,x=>x.toString(16).padStart(2,'0')).join('');}
 export class ClassroomSync{
  constructor(onStatus,onState){this.onStatus=onStatus;this.onState=onState;this.busy=false;this.epoch=0;this.timer=setInterval(()=>this.flush(),4000);window.addEventListener('online',()=>this.flush());}
