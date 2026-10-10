@@ -29,6 +29,7 @@ async function main(){
  const snapshot=path.join(dir,stamp+'-cloud-source.json'),migration=path.join(dir,stamp+'-import-private.sql');
  await fs.writeFile(snapshot,JSON.stringify({roster,source},null,2),{mode:0o600,flag:'wx'});
  await fs.writeFile(migration,sql,{mode:0o600,flag:'wx'});
+ await fs.writeFile(migration.replace(/\.sql$/,'-checks.json'),JSON.stringify({states:source.states}),{mode:0o600,flag:'wx'});
  console.log(JSON.stringify({roster:roster.length,counts:Object.fromEntries(Object.entries(source).map(([k,v])=>[k,v.length])),snapshot,migration}));
 }
 if(process.argv[1]&&pathToFileURL(path.resolve(process.argv[1])).href===import.meta.url)await main();

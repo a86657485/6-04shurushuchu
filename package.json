@@ -9,7 +9,7 @@
   "scripts": {
     "start": "node server.cjs",
     "test": "node --no-warnings --test tests/*.test.*",
-    "test:cloud": "node --no-warnings --test tests/cloud-service.test.mjs tests/api-response.test.mjs tests/cloud-migration.test.mjs",
+    "test:cloud": "node --no-warnings --test tests/cloud-service.test.mjs tests/api-response.test.mjs tests/cloud-migration.test.mjs tests/private-data-deploy.test.mjs",
     "prepare:cloud-data": "node --no-warnings tools/prepare-cloud-data.mjs"
   },
   "dependencies": {

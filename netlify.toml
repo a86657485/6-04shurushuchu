@@ -8,7 +8,7 @@
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
-  included_files = ["public/index.html", "public/teacher.html", "public/teacher-microphone.html"]
+  included_files = ["public/index.html", "public/teacher.html", "public/teacher-microphone.html", "cloud/initial-data.sql", "cloud/initial-data-checks.json"]
 
 [[redirects]]
   from = "/demo"

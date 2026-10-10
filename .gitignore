@@ -7,3 +7,5 @@ node_modules/
 .netlify/
 .private/
 netlify/database/migrations/*_import-private.sql
+cloud/initial-data.sql
+cloud/initial-data-checks.json
