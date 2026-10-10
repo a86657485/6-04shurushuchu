@@ -10,8 +10,10 @@ async function initialize(){
   try{await client.query('BEGIN');const value=await fn({query:(...args)=>client.query(...args),exec:sql=>client.query(sql)});await client.query('COMMIT');return value;}
   catch(e){await client.query('ROLLBACK');throw e;}finally{client.release();}
  }};
- await applyPrivateDataMigration(db);
- return createClassroomHandler({db,teacherKey:process.env.LESSON4_TEACHER_ACCESS_KEY||''});
+ try{
+  await applyPrivateDataMigration(db);
+  return createClassroomHandler({db,teacherKey:process.env.LESSON4_TEACHER_ACCESS_KEY||''});
+ }catch(e){await pool.end();throw e;}
 }
 export default async req=>{
  try{
