@@ -2,12 +2,20 @@
   "name": "lesson4-campus-systems",
   "version": "1.0.0",
   "private": true,
-  "description": "\u516d\u5e74\u7ea7\u7b2c4\u8bfe \u8f93\u5165\u8f93\u51fa\u4e0e\u8ba1\u7b97\u8bfe\u5802\u63a2\u7d22\u7ad9",
+  "description": "六年级第4课 输入输出与计算课堂探索站",
   "engines": {
     "node": ">=22.13"
   },
   "scripts": {
     "start": "node server.cjs",
-    "test": "node --no-warnings --test tests/*.test.*"
+    "test": "node --no-warnings --test tests/*.test.*",
+    "test:cloud": "node --no-warnings --test tests/cloud-service.test.mjs tests/api-response.test.mjs tests/cloud-migration.test.mjs tests/private-data-deploy.test.mjs",
+    "prepare:cloud-data": "node --no-warnings tools/prepare-cloud-data.mjs"
+  },
+  "dependencies": {
+    "@netlify/database": "^2.0.1"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.2.17"
   }
 }

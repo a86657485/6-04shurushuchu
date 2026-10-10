@@ -4,3 +4,8 @@ runtime/
 teacher-password.txt
 node_modules/
 .DS_Store
+.netlify/
+.private/
+netlify/database/migrations/*_import-private.sql
+cloud/initial-data.sql
+cloud/initial-data-checks.json

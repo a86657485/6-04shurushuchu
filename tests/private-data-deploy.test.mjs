@@ -1,0 +1,32 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {PGlite} from '@electric-sql/pglite';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+
+test('deployment data migration is atomic, runs once and never overwrites newer records',async t=>{
+ assert.ok(await fs.stat(new URL('../cloud/private-data-migration.mjs',import.meta.url)).catch(()=>false),'deployment data migration exists');
+ const {applyPrivateDataMigration}=await import('../cloud/private-data-migration.mjs');
+ const db=await PGlite.create();t.after(()=>db.close());
+ for(const name of ['20261010090000_classroom.sql','20261010110000_data_migrations.sql'])await db.exec(await fs.readFile(new URL('../netlify/database/migrations/'+name,import.meta.url),'utf8'));
+ const dir=await fs.mkdtemp(path.join(os.tmpdir(),'lesson4-private-'));t.after(()=>fs.rm(dir,{recursive:true,force:true}));
+ const file=path.join(dir,'data.sql');await fs.writeFile(file,"INSERT INTO lesson4_students(id,class_id,name) VALUES('fiction','601','虚构学生');\n");
+ await fs.writeFile(path.join(dir,'data-checks.json'),'{"states":[]}');
+ assert.equal((await applyPrivateDataMigration(db,file)).applied,true);
+ await db.query("UPDATE lesson4_students SET name='虚构学生修订' WHERE id='fiction'");
+ assert.equal((await applyPrivateDataMigration(db,file)).applied,false);
+ assert.equal((await db.query("SELECT name FROM lesson4_students WHERE id='fiction'")).rows[0].name,'虚构学生修订');
+ await fs.writeFile(file,'invalid sql');await assert.rejects(applyPrivateDataMigration(db,file),/变更/);
+ assert.equal((await applyPrivateDataMigration(db,path.join(dir,'missing.sql'))).applied,false);
+ await db.query('DELETE FROM lesson4_data_migrations');
+ await fs.writeFile(file,"INSERT INTO lesson4_students(id,class_id,name) VALUES('rollback','601','虚构待回滚'); invalid sql");
+ await assert.rejects(applyPrivateDataMigration(db,file));
+ assert.equal((await db.query("SELECT COUNT(*) AS n FROM lesson4_students WHERE id='rollback'")).rows[0].n,0);
+ assert.equal((await db.query('SELECT COUNT(*) AS n FROM lesson4_data_migrations')).rows[0].n,0);
+ await db.query("INSERT INTO lesson4_states VALUES('fiction','r1',$1)",[JSON.stringify({points:30})]);
+ await fs.writeFile(file,"INSERT INTO lesson4_events VALUES('must-not-apply','fiction','r1');");
+ await fs.writeFile(path.join(dir,'data-checks.json'),JSON.stringify({states:[{sid:'fiction',round:'r1',json:JSON.stringify({points:10})}]}));
+ await assert.rejects(applyPrivateDataMigration(db,file),/不同的学习记录/);
+ assert.equal((await db.query('SELECT COUNT(*) AS n FROM lesson4_events')).rows[0].n,0);
+});
